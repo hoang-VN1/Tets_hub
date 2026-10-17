@@ -1,16 +1,42 @@
 -- ============================================================
---  NINJA HUB v1.2 — Steal An Egg
---  UI: FluentPlus | Events: Nitro Race + Butterfly Bloom
---  Fix: AutoSteal forward-ref, Heartbeat leak, dropdown hook
+--  NINJA HUB v1.3 — Steal An Egg
+--  Fix: tab content load, float button parent, toggle UI, kick guard
 -- ============================================================
 
 -- ── LOAD THƯ VIỆN ──────────────────────────────────────────
 local FLUENT_URLS = {
-    "https://raw.githubusercontent.com/discoart/FluentPlus/refs/heads/main/release.lua",
+    "https://raw.githubusercontent.com/hoang-VN1/FluentPlus/refs/heads/main/release.lua",
     "https://raw.githubusercontent.com/dawid-scripts/Fluent/master/Fluent.lua",
 }
-local SAVE_URL  = "https://raw.githubusercontent.com/dawid-scripts/Fluent/master/Addons/SaveManager.lua"
-local IFACE_URL = "https://raw.githubusercontent.com/dawid-scripts/Fluent/master/Addons/InterfaceManager.lua"
+local SAVE_URL  = "https://raw.githubusercontent.com/hoang-VN1/Fluent/master/Addons/SaveManager.lua"
+local IFACE_URL = "https://raw.githubusercontent.com/hoang-VN1/Fluent/master/Addons/InterfaceManager.lua"
+
+-- Hiện thông báo load đang chạy
+local loadingGui
+pcall(function()
+    local parent
+    pcall(function() if gethui then parent = gethui() end end)
+    parent = parent or game:GetService("CoreGui")
+    loadingGui = Instance.new("ScreenGui")
+    loadingGui.Name = "NinjaHubLoading"
+    loadingGui.ResetOnSpawn = false
+    loadingGui.DisplayOrder = 9999
+    loadingGui.Parent = parent
+    local f = Instance.new("Frame")
+    f.Size = UDim2.new(0,260,0,44)
+    f.Position = UDim2.new(0.5,-130,0,12)
+    f.BackgroundColor3 = Color3.fromRGB(18,18,26)
+    f.BorderSizePixel = 0
+    f.Parent = loadingGui
+    Instance.new("UICorner",f).CornerRadius = UDim.new(0,10)
+    local lbl = Instance.new("TextLabel",f)
+    lbl.Size = UDim2.new(1,0,1,0)
+    lbl.BackgroundTransparency = 1
+    lbl.TextColor3 = Color3.fromRGB(160,100,255)
+    lbl.TextScaled = true
+    lbl.Font = Enum.Font.GothamBold
+    lbl.Text = "🥷 Ninja Hub — Đang tải..."
+end)
 
 local function tryLoad(urls)
     if type(urls) == "string" then urls = {urls} end
@@ -19,9 +45,9 @@ local function tryLoad(urls)
             return loadstring(game:HttpGet(url, true))()
         end)
         if ok and result then return result end
-        task.wait(0.2)
+        task.wait(0.3)
     end
-    error("Không load được thư viện từ tất cả URL")
+    error("Không load được thư viện")
 end
 
 local Fluent, SaveManager, InterfaceManager
@@ -31,41 +57,40 @@ local loadOk, loadErr = pcall(function()
     InterfaceManager = tryLoad(IFACE_URL)
 end)
 
+-- Xóa loading overlay
+pcall(function() if loadingGui then loadingGui:Destroy() end end)
+
 if not loadOk then
-    local guiParent
-    pcall(function() if gethui then guiParent = gethui() end end)
-    guiParent = guiParent or game:GetService("CoreGui")
+    local parent
+    pcall(function() if gethui then parent = gethui() end end)
+    parent = parent or game:GetService("CoreGui")
     local sg = Instance.new("ScreenGui")
-    sg.Name = "NinjaHubError"
-    sg.ResetOnSpawn = false
-    sg.Parent = guiParent
-    local lbl = Instance.new("TextLabel")
-    lbl.Size = UDim2.new(1,0,0,80)
-    lbl.Position = UDim2.new(0,0,0.42,0)
-    lbl.BackgroundColor3 = Color3.fromRGB(15,0,0)
-    lbl.TextColor3 = Color3.fromRGB(255,80,80)
-    lbl.TextScaled = true
-    lbl.Text = "🥷 Ninja Hub: Lỗi load thư viện\nKiểm tra HTTP Request và kết nối mạng\n" .. tostring(loadErr)
-    lbl.Font = Enum.Font.GothamBold
-    lbl.Parent = sg
+    sg.Name = "NinjaHubError"; sg.ResetOnSpawn = false; sg.DisplayOrder = 9999
+    sg.Parent = parent
+    local f = Instance.new("Frame", sg)
+    f.Size = UDim2.new(0,360,0,100)
+    f.Position = UDim2.new(0.5,-180,0.45,0)
+    f.BackgroundColor3 = Color3.fromRGB(30,0,0)
+    f.BorderSizePixel = 0
+    Instance.new("UICorner",f).CornerRadius = UDim.new(0,12)
+    local lbl = Instance.new("TextLabel",f)
+    lbl.Size = UDim2.new(1,-16,1,0); lbl.Position = UDim2.new(0,8,0,0)
+    lbl.BackgroundTransparency = 1; lbl.TextColor3 = Color3.fromRGB(255,80,80)
+    lbl.TextWrapped = true; lbl.TextScaled = true
+    lbl.Font = Enum.Font.Gotham
+    lbl.Text = "🥷 Ninja Hub: Lỗi load thư viện\nBật HTTP Requests trong game settings\n" .. tostring(loadErr):sub(1,80)
     return
 end
 
 -- ── EXECUTOR DETECT ────────────────────────────────────────
 local ExecName = "Unknown"
 pcall(function()
-    if identifyexecutor then
-        ExecName = identifyexecutor()
-    elseif syn and syn.request then
-        ExecName = "Synapse X"
-    elseif KRNL_LOADED then
-        ExecName = "KRNL"
-    elseif rconsoleprint then
-        ExecName = "Script-Ware / Delta"
-    elseif fluxus then
-        ExecName = "Fluxus"
-    elseif ronix then
-        ExecName = "Ronix"
+    if identifyexecutor then ExecName = identifyexecutor()
+    elseif syn and syn.request then ExecName = "Synapse X"
+    elseif KRNL_LOADED then ExecName = "KRNL"
+    elseif rconsoleprint then ExecName = "Script-Ware / Delta"
+    elseif fluxus then ExecName = "Fluxus"
+    elseif ronix then ExecName = "Ronix"
     end
 end)
 
@@ -73,7 +98,8 @@ local function copyToClipboard(text)
     pcall(function()
         if setclipboard then setclipboard(text)
         elseif toclipboard then toclipboard(text)
-        elseif Clipboard and Clipboard.set then Clipboard.set(text) end
+        elseif Clipboard and Clipboard.set then Clipboard.set(text)
+        end
     end)
 end
 
@@ -94,73 +120,75 @@ player.CharacterAdded:Connect(function(char)
     humanoid  = char:FindFirstChildOfClass("Humanoid")
 end)
 
--- ── HÀM TIỆN ÍCH ───────────────────────────────────────────
+-- ── TIỆN ÍCH ───────────────────────────────────────────────
 local function safeGet(root, path)
     local cur = root
     for _, name in ipairs(path) do
-        if cur == nil then return nil end
+        if not cur then return nil end
         cur = cur:FindFirstChild(name)
     end
     return cur
 end
 
-local function readStat(statName)
-    local ls = safeGet(player, {"leaderstats"})
-    if not ls then return "N/A" end
-    local v = ls:FindFirstChild(statName)
-    return v and tostring(v.Value) or "N/A"
-end
-
 local function getSpeed()
     local ls = safeGet(player, {"leaderstats"})
     if ls then
-        for _, name in ipairs({"Speed","SPD","Spd","speed"}) do
-            local v = ls:FindFirstChild(name)
+        for _, n in ipairs({"Speed","SPD","Spd","speed"}) do
+            local v = ls:FindFirstChild(n)
             if v then return tostring(v.Value) end
         end
     end
-    if humanoid then
-        return string.format("%.1f (WalkSpeed)", humanoid.WalkSpeed)
-    end
-    return "N/A"
+    local hum = character and character:FindFirstChildOfClass("Humanoid")
+    return hum and string.format("%.0f (WalkSpeed)", hum.WalkSpeed) or "N/A"
 end
 
 local function getMoney()
-    for _, name in ipairs({"Cash","Money","Coins","Gems","Gold","cash","money"}) do
-        local v = readStat(name)
-        if v ~= "N/A" then return name .. ": " .. v end
+    local ls = safeGet(player, {"leaderstats"})
+    if ls then
+        for _, n in ipairs({"Cash","Money","Coins","Gems","Gold","cash","money","Eggs","Honey"}) do
+            local v = ls:FindFirstChild(n)
+            if v and tostring(v.Value) ~= "0" then return n..": "..tostring(v.Value) end
+        end
+        -- Lấy tất cả leaderstats
+        local parts = {}
+        for _, v in ipairs(ls:GetChildren()) do
+            table.insert(parts, v.Name..": "..tostring(v.Value))
+        end
+        if #parts > 0 then return table.concat(parts, " | ") end
     end
     return "N/A"
 end
 
 -- ═══════════════════════════════════════════════════════════
---  AUTO STEAL ENGINE — khai báo TRƯỚC mọi tab để tránh forward-ref
+--  AUTO STEAL ENGINE
 -- ═══════════════════════════════════════════════════════════
-local AutoSteal = {}
-AutoSteal.Active      = false
-AutoSteal.FlySpeed    = 120
-AutoSteal.SafePos     = nil
-AutoSteal.CatchAll    = false
-AutoSteal.Status      = "Chờ..."
-AutoSteal.TargetNames = {
-    "RiftEgg", "Rift Egg",
-    "ExtinctionEgg", "Extinction Egg",
-    "LuminousEgg", "Luminous Egg",
-    "ExperimentEgg", "Experiment #001 Egg", "Experiment #013 Egg",
+local AutoSteal = {
+    Active      = false,
+    FlySpeed    = 120,
+    SafePos     = nil,
+    CatchAll    = false,
+    Status      = "Chờ...",
+    TargetNames = {
+        "RiftEgg","Rift Egg",
+        "ExtinctionEgg","Extinction Egg",
+        "LuminousEgg","Luminous Egg",
+        "Experiment #001 Egg","Experiment #013 Egg",
+    },
 }
 
--- stealLabel là ref đến Paragraph widget trong Eggs tab — gán sau khi tạo tab
-local stealLabel = nil
+local stealLabel = nil  -- gán sau khi tạo Eggs tab
+
+local function setStealStatus(msg)
+    AutoSteal.Status = msg
+    if stealLabel then pcall(function() stealLabel:SetContent(msg) end) end
+end
 
 local function isTargetEgg(name)
     local low = name:lower()
     for _, t in ipairs(AutoSteal.TargetNames) do
         if low == t:lower() then return true end
     end
-    if AutoSteal.CatchAll then
-        return low:find("egg") ~= nil
-    end
-    return false
+    return AutoSteal.CatchAll and (low:find("egg") ~= nil)
 end
 
 local function findNearestEgg()
@@ -169,75 +197,48 @@ local function findNearestEgg()
     local best, bestDist = nil, math.huge
     pcall(function()
         for _, obj in ipairs(workspace:GetDescendants()) do
-            if obj:IsA("BasePart") or obj:IsA("Model") then
-                if isTargetEgg(obj.Name) then
-                    local pos
-                    if obj:IsA("Model") then
-                        pos = obj.PrimaryPart and obj.PrimaryPart.Position
-                            or obj:GetModelCFrame().Position
-                    else
-                        pos = obj.Position
-                    end
-                    local d = (pos - root.Position).Magnitude
-                    if d < bestDist then
-                        best     = obj
-                        bestDist = d
-                    end
-                end
+            if (obj:IsA("BasePart") or obj:IsA("Model")) and isTargetEgg(obj.Name) then
+                local pos = obj:IsA("Model")
+                    and (obj.PrimaryPart and obj.PrimaryPart.Position or obj:GetModelCFrame().Position)
+                    or obj.Position
+                local d = (pos - root.Position).Magnitude
+                if d < bestDist then best = obj; bestDist = d end
             end
         end
     end)
     return best, bestDist
 end
 
-local function getEggPosition(egg)
-    if egg:IsA("Model") then
-        return egg.PrimaryPart and egg.PrimaryPart.Position
-            or egg:GetModelCFrame().Position
-    end
-    return egg.Position
-end
-
 local function flyTo(targetPos, onDone)
     local root = character and character:FindFirstChild("HumanoidRootPart")
     if not root then if onDone then onDone(false) end return end
-
-    local stepConn
-    local arrived = false
-    stepConn = RunService.Heartbeat:Connect(function(dt)
+    local conn; local done = false
+    conn = RunService.Heartbeat:Connect(function(dt)
         pcall(function()
-            local r2 = character and character:FindFirstChild("HumanoidRootPart")
-            if not r2 then
-                stepConn:Disconnect()
-                if onDone then onDone(false) end
-                return
-            end
-            local diff = targetPos - r2.Position
+            local r = character and character:FindFirstChild("HumanoidRootPart")
+            if not r then conn:Disconnect(); if onDone then onDone(false) end; return end
+            local diff = targetPos - r.Position
             local dist = diff.Magnitude
             if dist < 3 then
-                arrived = true
-                stepConn:Disconnect()
+                done = true; conn:Disconnect()
                 if onDone then onDone(true) end
                 return
             end
-            local step   = math.min(AutoSteal.FlySpeed * dt, dist)
-            local newPos = r2.Position + diff.Unit * step
-            r2.CFrame    = CFrame.new(newPos, newPos + diff.Unit)
+            r.CFrame = CFrame.new(r.Position + diff.Unit * math.min(AutoSteal.FlySpeed * dt, dist))
         end)
     end)
     task.delay(8, function()
-        if not arrived then
-            pcall(function() stepConn:Disconnect() end)
-            if onDone then onDone(false) end
-        end
+        if not done then pcall(function() conn:Disconnect() end); if onDone then onDone(false) end end
     end)
 end
 
-local function setStealStatus(msg)
-    AutoSteal.Status = msg
-    if stealLabel then
-        pcall(function() stealLabel:SetContent(msg) end)
-    end
+local function asyncFlyTo(pos)
+    -- Synchronous wrapper dùng task.wait
+    local done, ok = false, false
+    flyTo(pos, function(result) ok = result; done = true end)
+    local t = 0
+    while not done and t < 10 do task.wait(0.1); t = t + 0.1 end
+    return ok
 end
 
 local function stealLoop()
@@ -245,24 +246,11 @@ local function stealLoop()
         pcall(function()
             local egg, dist = findNearestEgg()
             if egg then
-                local ePos = getEggPosition(egg)
                 setStealStatus(string.format("Bay tới: %s (%.0fm)", egg.Name, dist or 0))
-
-                -- flyTo chạy async qua callback, dùng event để đồng bộ trong loop
-                local done = false
-                local success = false
-                flyTo(ePos, function(ok)
-                    success = ok
-                    done    = true
-                end)
-                -- Chờ callback
-                local waited = 0
-                while not done and waited < 10 do
-                    task.wait(0.1)
-                    waited = waited + 0.1
-                end
-
-                if success then
+                local ePos = egg:IsA("Model")
+                    and (egg.PrimaryPart and egg.PrimaryPart.Position or egg:GetModelCFrame().Position)
+                    or egg.Position
+                if asyncFlyTo(ePos) then
                     pcall(function()
                         local cd = egg:FindFirstChildOfClass("ClickDetector")
                         if cd then fireclickdetector(cd) end
@@ -270,16 +258,8 @@ local function stealLoop()
                         if pp then fireproximityprompt(pp) end
                     end)
                     setStealStatus("Đã cướp! Bay về base...")
-                    if AutoSteal.SafePos then
-                        local done2 = false
-                        flyTo(AutoSteal.SafePos, function() done2 = true end)
-                        local w2 = 0
-                        while not done2 and w2 < 10 do
-                            task.wait(0.1)
-                            w2 = w2 + 0.1
-                        end
-                    end
-                    setStealStatus("Về base xong. Tìm trứng tiếp...")
+                    if AutoSteal.SafePos then asyncFlyTo(AutoSteal.SafePos) end
+                    setStealStatus("Về base xong. Tiếp tục...")
                 else
                     setStealStatus("Không tới được — bỏ qua")
                 end
@@ -292,21 +272,25 @@ local function stealLoop()
     setStealStatus("Đã dừng")
 end
 
--- ── CỬA SỔ CHÍNH ───────────────────────────────────────────
+-- ── TẠO CỬA SỔ ─────────────────────────────────────────────
+-- task.wait nhỏ để game hoàn tất init trước khi tạo UI
+task.wait(0.3)
+
 local Window = Fluent:CreateWindow({
     Title                  = "Ninja Hub",
-    SubTitle               = "Steal An Egg  •  v1.2",
-    TitleIcon              = "https://raw.githubusercontent.com/hoang-VN1/Tets/refs/heads/main/2374e4b898e74c1ff0183cbad39987bb.webp",
-    Image                  = "https://raw.githubusercontent.com/hoang-VN1/Tets/refs/heads/main/2374e4b898e74c1ff0183cbad39987bb.webp",
+    SubTitle               = "Steal An Egg  •  v1.3",
+    TitleIcon              = "rbxassetid://6031068421",
     DropdownsOutsideWindow = true,
     Size                   = UDim2.fromOffset(500, 370),
     TabWidth               = 160,
     Acrylic                = true,
     Theme                  = "Dark",
-    Search                 = true,
+    Search                 = false,
     MinimizeKey            = Enum.KeyCode.LeftControl,
-    UserInfo               = false,
 })
+
+-- Chờ Window render xong
+task.wait(0.2)
 
 -- ── TABS ────────────────────────────────────────────────────
 local Tabs = {
@@ -320,19 +304,23 @@ local Tabs = {
     Settings  = Window:AddTab({ Title = "Settings",   Icon = "settings"  }),
 }
 
+task.wait(0.1) -- chờ tabs mount
+
 -- ═══════════════════════════════════════════════════════════
 --  TAB 1: HOME
 -- ═══════════════════════════════════════════════════════════
+local statusLabel, moneyLabel, speedLabel
+
 do
     local t = Tabs.Home
 
     t:AddSection({ Name = "⚡ Ninja Hub — Trạng thái" })
 
-    local statusLabel = t:AddParagraph({ Title = "Trạng thái",  Content = "Đang tải..." })
-    local moneyLabel  = t:AddParagraph({ Title = "Tiền tệ",     Content = getMoney()    })
-    local speedLabel  = t:AddParagraph({ Title = "Speed",       Content = getSpeed()    })
+    statusLabel = t:AddParagraph({ Title = "Trạng thái",  Content = "Đang tải..." })
+    moneyLabel  = t:AddParagraph({ Title = "Tài khoản",   Content = getMoney()    })
+    speedLabel  = t:AddParagraph({ Title = "Speed",       Content = getSpeed()    })
 
-    -- Throttle refresh đúng cách: dùng tick() thay vì task.wait() trong Heartbeat
+    -- Throttle update 3s
     local lastRefresh = 0
     RunService.Heartbeat:Connect(function()
         local now = tick()
@@ -342,18 +330,14 @@ do
             moneyLabel:SetContent(getMoney())
             speedLabel:SetContent(getSpeed())
             local hum = character and character:FindFirstChildOfClass("Humanoid")
-            if hum then
-                statusLabel:SetContent(string.format(
-                    "Nhân vật: %s  |  HP: %.0f/%.0f",
-                    player.Name, hum.Health, hum.MaxHealth
-                ))
-            else
-                statusLabel:SetContent("Nhân vật chưa sẵn sàng")
-            end
+            statusLabel:SetContent(hum
+                and string.format("%s  |  HP: %.0f/%.0f", player.Name, hum.Health, hum.MaxHealth)
+                or "Nhân vật chưa sẵn sàng"
+            )
         end)
     end)
 
-    t:AddSection({ Name = "🔧 Hub" })
+    t:AddSection({ Name = "🔧 Công cụ" })
 
     t:AddButton({
         Title    = "Làm mới thông số",
@@ -370,9 +354,9 @@ do
     t:AddParagraph({
         Title   = "Thông tin",
         Content = string.format(
-            "Ninja Hub v1.2 | Steal An Egg\nEvent: Nitro Race + Butterfly Bloom\nTác giả: hoang\n\n💻 Executor: %s\n🖥 Platform: %s",
+            "Ninja Hub v1.3 | Steal An Egg\nNitro Race + Butterfly Bloom\n\n💻 Executor: %s\n📱 Platform: %s",
             ExecName,
-            UserInputService.TouchEnabled and "Mobile 📱" or "PC/Console 🖥"
+            UserInputService.TouchEnabled and "Mobile" or "PC/Console"
         )
     })
 
@@ -380,56 +364,8 @@ do
 
     t:AddParagraph({
         Title   = "Keybinds",
-        Content = "Left Ctrl  — Thu gọn / Mở menu\nF5         — Làm mới stats\nF6         — Bật/tắt Auto Steal\nF7         — Server Hop ngay\nDelete     — Đóng Ninja Hub"
+        Content = "Left Ctrl  — Thu gọn / Mở menu\nF5         — Làm mới stats\nF6         — Bật/tắt Auto Steal\nF7         — Server Hop\nDelete     — Đóng Hub"
     })
-
-    -- Keybinds — AutoSteal đã khai báo ở trên nên an toàn
-    UserInputService.InputBegan:Connect(function(input, gp)
-        if gp then return end
-        if input.KeyCode == Enum.KeyCode.F5 then
-            pcall(function()
-                moneyLabel:SetContent(getMoney())
-                speedLabel:SetContent(getSpeed())
-            end)
-            Fluent:Notify({ Title = "Ninja Hub", Content = "Stats đã làm mới!", Duration = 2 })
-
-        elseif input.KeyCode == Enum.KeyCode.F6 then
-            AutoSteal.Active = not AutoSteal.Active
-            Fluent:Notify({
-                Title   = "Auto Steal",
-                Content = AutoSteal.Active and "Đã bật!" or "Đã tắt!",
-                Duration = 2
-            })
-            if AutoSteal.Active then task.spawn(stealLoop) end
-
-        elseif input.KeyCode == Enum.KeyCode.F7 then
-            Fluent:Notify({ Title = "Server Hop", Content = "Đang tìm server...", Duration = 2 })
-            task.spawn(function()
-                local ok, data = pcall(function()
-                    return HttpService:JSONDecode(
-                        game:HttpGet(string.format(
-                            "https://games.roblox.com/v1/games/%d/servers/Public?sortOrder=Asc&limit=20",
-                            game.PlaceId
-                        ), true)
-                    )
-                end)
-                if ok and data and data.data and #data.data > 0 then
-                    table.sort(data.data, function(a,b)
-                        return (a.playing or 99) < (b.playing or 99)
-                    end)
-                    pcall(function()
-                        TeleportService:TeleportToPlaceInstance(game.PlaceId, data.data[1].id, player)
-                    end)
-                end
-            end)
-
-        elseif input.KeyCode == Enum.KeyCode.Delete then
-            pcall(function()
-                local g = CoreGui:FindFirstChild("NinjaHubFloatingUI")
-                if g then g:Destroy() end
-            end)
-        end
-    end)
 end
 
 -- ═══════════════════════════════════════════════════════════
@@ -438,49 +374,36 @@ end
 do
     local t = Tabs.Eggs
 
-    t:AddSection({ Name = "🥚 Trứng" })
+    t:AddSection({ Name = "🥚 Trứng trong tay" })
 
-    local eggInfoLabel = t:AddParagraph({ Title = "Trứng trong tay", Content = "Đang kiểm tra..." })
+    local eggInfoLabel = t:AddParagraph({ Title = "Trứng", Content = "Nhấn Quét để kiểm tra" })
 
-    local function scanEggs()
+    local function scanEggsInv()
         local found = {}
         pcall(function()
-            if character then
-                for _, obj in ipairs(character:GetChildren()) do
-                    if obj.Name:lower():find("egg") then
-                        table.insert(found, obj.Name)
-                    end
-                end
-            end
-            local bp = player:FindFirstChild("Backpack")
-            if bp then
-                for _, obj in ipairs(bp:GetChildren()) do
-                    if obj.Name:lower():find("egg") then
-                        table.insert(found, obj.Name)
+            for _, src in ipairs({character, player:FindFirstChild("Backpack")}) do
+                if src then
+                    for _, obj in ipairs(src:GetChildren()) do
+                        if obj.Name:lower():find("egg") then
+                            table.insert(found, "• "..obj.Name)
+                        end
                     end
                 end
             end
         end)
-        return #found > 0
-            and table.concat(found, "\n")
-            or "Không tìm thấy trứng\n(chưa xác minh path Instance)"
+        return #found > 0 and table.concat(found,"\n") or "Không thấy trứng trong túi"
     end
 
-    eggInfoLabel:SetContent(scanEggs())
-
     t:AddButton({
-        Title    = "Quét trứng",
-        Desc     = "Tìm trứng trong character và Backpack",
+        Title    = "🔍 Quét trứng trong túi",
         Callback = function()
-            eggInfoLabel:SetContent(scanEggs())
-            Fluent:Notify({ Title = "Eggs", Content = "Đã quét!", Duration = 2 })
+            eggInfoLabel:SetContent(scanEggsInv())
         end
     })
 
-    -- ── AUTO STEAL UI ─────────────────────────────────────
-    t:AddSection({ Name = "🥷 Auto Steal Eggs" })
+    -- AUTO STEAL
+    t:AddSection({ Name = "🥷 Auto Steal" })
 
-    -- Gán stealLabel ở đây — dùng được từ stealLoop vì stealLoop gọi setStealStatus
     stealLabel = t:AddParagraph({ Title = "Trạng thái", Content = "Chờ bật..." })
 
     t:AddToggle("AutoStealToggle", {
@@ -490,80 +413,64 @@ do
         Callback = function(val)
             AutoSteal.Active = val
             if val then
-                Fluent:Notify({ Title = "Auto Steal", Content = "Đã bật!", Duration = 3 })
                 task.spawn(stealLoop)
-            else
-                Fluent:Notify({ Title = "Auto Steal", Content = "Đã tắt.", Duration = 2 })
+                Fluent:Notify({ Title = "Auto Steal", Content = "Đã bật!", Duration = 2 })
             end
         end
     })
 
     t:AddSlider("FlySpeedSlider", {
         Title    = "Tốc độ bay",
-        Desc     = "Studs/giây khi bay tới trứng",
-        Min      = 20,
-        Max      = 500,
-        Default  = 120,
-        Rounding = 0,
+        Min = 20, Max = 500, Default = 120, Rounding = 0,
         Callback = function(val) AutoSteal.FlySpeed = val end
     })
 
     t:AddToggle("CatchAllToggle", {
         Title    = "Bắt mọi trứng",
-        Desc     = "Bật = cướp tất cả object có tên chứa 'egg'",
+        Desc     = "Cướp tất cả object có tên chứa 'egg'",
         Default  = false,
         Callback = function(val) AutoSteal.CatchAll = val end
     })
 
     t:AddButton({
         Title    = "📍 Lưu vị trí base",
-        Desc     = "Ghi nhớ chỗ đứng hiện tại làm điểm trở về",
+        Desc     = "Ghi nhớ chỗ đứng hiện tại làm điểm về",
         Callback = function()
             local root = character and character:FindFirstChild("HumanoidRootPart")
             if root then
                 AutoSteal.SafePos = root.Position
-                Fluent:Notify({
-                    Title   = "Base đã lưu",
-                    Content = string.format("X:%.0f Y:%.0f Z:%.0f",
-                        root.Position.X, root.Position.Y, root.Position.Z),
-                    Duration = 3
-                })
+                Fluent:Notify({ Title = "Base đã lưu",
+                    Content = string.format("X:%.0f Y:%.0f Z:%.0f", root.Position.X, root.Position.Y, root.Position.Z),
+                    Duration = 3 })
                 setStealStatus("Base đã lưu ✅")
-            else
-                Fluent:Notify({ Title = "Lỗi", Content = "Không tìm thấy nhân vật!", Duration = 3 })
             end
         end
     })
 
     t:AddButton({
         Title    = "🔍 Quét tên trứng trong workspace",
-        Desc     = "Liệt kê object có 'egg' (copy tên thật để điền vào script)",
+        Desc     = "Tìm object 'egg' — copy tên thật để điền",
         Callback = function()
             local found = {}
             pcall(function()
                 for _, obj in ipairs(workspace:GetDescendants()) do
                     if obj.Name:lower():find("egg") then
-                        local key = obj.Name .. " [" .. obj.ClassName .. "]"
-                        if not table.find(found, key) then
-                            table.insert(found, key)
-                        end
+                        local key = obj.Name.." ["..obj.ClassName.."]"
+                        if not table.find(found, key) then table.insert(found, key) end
                         if #found >= 20 then break end
                     end
                 end
             end)
-            local txt = #found > 0
-                and table.concat(found, "\n")
-                or "Không tìm thấy — trứng chưa spawn?"
-            setStealStatus("Eggs tìm thấy:\n" .. txt)
-            Fluent:Notify({ Title = "Scan", Content = string.format("Tìm thấy %d objects", #found), Duration = 3 })
+            local txt = #found > 0 and table.concat(found,"\n") or "Không tìm thấy — trứng chưa spawn?"
+            setStealStatus(txt)
+            Fluent:Notify({ Title = "Scan", Content = #found.." objects", Duration = 2 })
         end
     })
 
-    t:AddSection({ Name = "📋 Danh sách trứng" })
-
+    t:AddSection({ Name = "📋 Trứng trong game" })
     t:AddParagraph({
-        Title   = "Các loại trứng",
-        Content = "• Extinction Egg (Paid)\n• Luminous Egg (Store)\n• Rift Egg (Boss Event)\n• Experiment #001 Egg\n• Experiment #013 Egg\n• Cherry Blossom Egg\n• Monster Egg\n\n⚠ Tên Instance chưa xác minh — dùng Quét ở trên"
+        Title   = "Danh sách",
+        Content = "• Extinction Egg  • Luminous Egg\n• Rift Egg         • Experiment #001\n• Experiment #013  • Cherry Blossom\n• Monster Egg\n\n⚠ Quét workspace để lấy tên Instance thật"
     })
 end
 
@@ -574,43 +481,38 @@ do
     local t = Tabs.Pets
 
     local EggPetDB = {
-        ["Rift Egg"] = {
-            "Overlord", "Shadow Drake", "Void Wolf", "Rift Fox",
-            "Eclipse Bear", "Phantom Cat", "Dark Serpent", "Null Bunny",
-            "Abyss Turtle", "Glitch Deer", "Rift Dragon", "Void Phoenix",
-            "Shadow Tiger", "Eclipse Lion", "Null Hydra", "Rift Overlord",
-        },
-        ["Extinction Egg"] = { "T-Rex", "Mammoth", "Saber Tooth", "Dodo", "Pterodactyl", "Triceratops" },
-        ["Luminous Egg"]   = { "Luminous Cat", "Luminous Dog", "Luminous Fox", "Luminous Dragon", "Luminous Phoenix" },
-        ["Experiment #001 Egg"] = { "Experiment #001", "Mutant Frog", "Lab Rat" },
-        ["Experiment #013 Egg"] = { "Experiment #013", "Bio Wolf", "Toxic Snake" },
-        ["Cherry Blossom Egg"]  = { "Crane", "Sakura Fox", "Petal Deer", "Blossom Bunny" },
-        ["Monster Egg"]         = { "Hungry Frog", "Bloom Frog", "Spirit Bloom Frog" },
+        ["Rift Egg"]            = {"Overlord","Shadow Drake","Void Wolf","Rift Fox","Eclipse Bear","Phantom Cat","Dark Serpent","Null Bunny","Abyss Turtle","Glitch Deer","Rift Dragon","Void Phoenix","Shadow Tiger","Eclipse Lion","Null Hydra","Rift Overlord"},
+        ["Extinction Egg"]      = {"T-Rex","Mammoth","Saber Tooth","Dodo","Pterodactyl","Triceratops"},
+        ["Luminous Egg"]        = {"Luminous Cat","Luminous Dog","Luminous Fox","Luminous Dragon","Luminous Phoenix"},
+        ["Experiment #001 Egg"] = {"Experiment #001","Mutant Frog","Lab Rat"},
+        ["Experiment #013 Egg"] = {"Experiment #013","Bio Wolf","Toxic Snake"},
+        ["Cherry Blossom Egg"]  = {"Crane","Sakura Fox","Petal Deer","Blossom Bunny"},
+        ["Monster Egg"]         = {"Hungry Frog","Bloom Frog","Spirit Bloom Frog"},
     }
 
     local petToEgg = {}
-    for eggName, pets in pairs(EggPetDB) do
-        for _, pet in ipairs(pets) do
-            petToEgg[pet] = eggName
-        end
+    for egg, pets in pairs(EggPetDB) do
+        for _, pet in ipairs(pets) do petToEgg[pet] = egg end
     end
-
-    local selectedEgg = nil
-    local selectedPet = nil
 
     local eggNames = {}
     for k in pairs(EggPetDB) do table.insert(eggNames, k) end
     table.sort(eggNames)
 
-    t:AddSection({ Name = "🐾 Chọn Pet Muốn Lấy" })
+    local allPets = {}
+    for _, egg in ipairs(eggNames) do
+        for _, pet in ipairs(EggPetDB[egg]) do
+            table.insert(allPets, pet)
+        end
+    end
 
-    local petStatusLabel = t:AddParagraph({ Title = "Đang nhắm tới", Content = "Chưa chọn pet" })
+    local selectedEgg = eggNames[1]
+    local selectedPet = nil
 
-    -- Lấy pet list của egg đầu tiên để init dropdown pet
-    selectedEgg = eggNames[1]
-    local initPets = EggPetDB[selectedEgg] or {}
+    t:AddSection({ Name = "🐾 Chọn Pet" })
 
-    -- Dropdown egg — dùng Callback, KHÔNG dùng .Changed (FluentPlus không có)
+    local petStatusLabel = t:AddParagraph({ Title = "Nhắm tới", Content = "Chưa chọn" })
+
     t:AddDropdown("EggDropdown", {
         Title    = "Chọn loại trứng",
         Values   = eggNames,
@@ -618,86 +520,59 @@ do
         Callback = function(val)
             selectedEgg = val
             selectedPet = nil
-            petStatusLabel:SetContent("Đã chọn trứng: " .. val .. "\n→ Chọn pet bên dưới")
-            -- Cập nhật AutoSteal target ngay khi đổi trứng
             AutoSteal.TargetNames = { val }
+            petStatusLabel:SetContent("Trứng: "..val.."\n→ Chọn pet bên dưới hoặc bật steal ngay")
         end
     })
 
-    -- Dropdown pet — toàn bộ danh sách phẳng vì FluentPlus không re-render values
-    -- User chọn pet, script tự lấy egg tương ứng
-    local allPetsFlat = {}
-    for _, egg in ipairs(eggNames) do
-        for _, pet in ipairs(EggPetDB[egg]) do
-            table.insert(allPetsFlat, pet)
-        end
-    end
-
     t:AddDropdown("PetDropdown", {
         Title    = "Chọn pet muốn lấy",
-        Values   = allPetsFlat,
-        Default  = allPetsFlat[1],
+        Values   = allPets,
+        Default  = allPets[1],
         Callback = function(val)
             selectedPet = val
-            local eggOfPet = petToEgg[val]
-            selectedEgg    = eggOfPet or selectedEgg
-            petStatusLabel:SetContent(
-                string.format("🎯 Pet: %s\n📦 Trứng: %s", val, selectedEgg or "?")
-            )
-            AutoSteal.TargetNames = { selectedEgg or val }
+            local egg = petToEgg[val] or selectedEgg
+            selectedEgg = egg
+            AutoSteal.TargetNames = { egg }
+            petStatusLabel:SetContent(string.format("🎯 Pet: %s\n📦 Trứng: %s", val, egg))
         end
     })
 
     t:AddSection({ Name = "🥷 Auto Steal theo Pet" })
 
-    local autoStealPetLabel = t:AddParagraph({ Title = "Trạng thái", Content = "Chưa bật" })
+    local petStealLabel = t:AddParagraph({ Title = "Trạng thái", Content = "Chưa bật" })
 
     t:AddToggle("AutoStealPetToggle", {
-        Title    = "Tự động steal trứng có pet này",
-        Desc     = "Chọn pet trước rồi bật — script tìm đúng trứng",
+        Title    = "Bật Auto Steal theo Pet",
+        Desc     = "Chọn pet trước, script tìm đúng trứng",
         Default  = false,
         Callback = function(val)
             AutoSteal.Active = val
             if val then
                 if not selectedEgg then
                     Fluent:Notify({ Title = "Pets", Content = "Chọn pet trước!", Duration = 3 })
-                    AutoSteal.Active = false
-                    return
+                    AutoSteal.Active = false; return
                 end
                 AutoSteal.TargetNames = { selectedEgg }
-                autoStealPetLabel:SetContent("🟢 Đang steal: " .. selectedEgg)
-                Fluent:Notify({
-                    Title   = "Auto Steal Pet",
-                    Content = "Đang tìm: " .. (selectedPet or selectedEgg),
-                    Duration = 3
-                })
+                petStealLabel:SetContent("🟢 Đang steal: "..(selectedPet or selectedEgg))
                 task.spawn(stealLoop)
+                Fluent:Notify({ Title = "Auto Steal Pet", Content = "Đang tìm: "..(selectedPet or selectedEgg), Duration = 3 })
             else
-                autoStealPetLabel:SetContent("⚫ Đã dừng")
+                petStealLabel:SetContent("⚫ Đã dừng")
             end
         end
     })
 
-    t:AddSection({ Name = "📋 Pets theo trứng" })
-
+    t:AddSection({ Name = "📋 Danh sách Pets" })
     t:AddParagraph({
-        Title   = "Danh sách đầy đủ",
-        Content =
-            "🥚 Rift Egg (16): Overlord, Shadow Drake, Void Wolf...\n" ..
-            "🦕 Extinction: T-Rex, Mammoth, Saber Tooth...\n" ..
-            "✨ Luminous: Cat/Dog/Fox/Dragon/Phoenix\n" ..
-            "🧪 Exp #001: Experiment, Mutant Frog, Lab Rat\n" ..
-            "🧪 Exp #013: Experiment, Bio Wolf, Toxic Snake\n" ..
-            "🌸 Cherry Blossom: Crane, Sakura Fox, Petal Deer\n" ..
-            "👾 Monster: Hungry/Bloom/Spirit Frog\n\n" ..
-            "⚠ Tên từ wiki — chưa xác minh Instance"
+        Title   = "Pets theo trứng",
+        Content = "🥚 Rift Egg (16): Overlord, Shadow Drake...\n🦕 Extinction: T-Rex, Mammoth...\n✨ Luminous: Cat/Dog/Fox/Dragon/Phoenix\n🧪 Exp #001/#013: Bio Wolf, Mutant Frog...\n🌸 Cherry Blossom: Crane, Sakura Fox...\n👾 Monster: Hungry/Bloom/Spirit Frog\n\n⚠ Tên từ wiki"
     })
 
-    t:AddSection({ Name = "🏆 Win Pass Pets (Nitro Race)" })
-
+    t:AddSection({ Name = "🏆 Win Pass (Nitro Race)" })
     t:AddParagraph({
         Title   = "Phần thưởng",
-        Content = "1 win   → Seahorse Racer\n5 wins  → Lizard Racer\n15 wins → Bird Racer\n21 wins → Cheetah Racer\n30 wins → Snail Racer\n\n✅ Xác minh từ Update 8"
+        Content = "1w → Seahorse  |  5w → Lizard\n15w → Bird  |  21w → Cheetah  |  30w → Snail"
     })
 end
 
@@ -707,111 +582,74 @@ end
 do
     local t = Tabs.Nitro
 
-    t:AddSection({ Name = "🏎️ Nitro Race — Thông tin" })
-
+    t:AddSection({ Name = "🏎️ Nitro Race" })
     t:AddParagraph({
-        Title   = "Cơ chế (đã xác minh)",
-        Content = "• Race bắt đầu mỗi 30 phút\n• Thắng nhất: +1 Win, +2,500 Trophies\n• Trophies đổi: Boosters, Nitro Mutation (475T, 10%)\n• Win Pass: 5 pet độc quyền"
+        Title   = "Cơ chế",
+        Content = "• Race mỗi 30 phút\n• 1st place: +1 Win, +2,500 Trophies\n• Trophies → Nitro Mutation (475T, 10%)\n• Win Pass: 5 pet độc quyền"
     })
 
-    t:AddSection({ Name = "⏱ Đồng hồ đếm ngược" })
-
-    local timerLabel   = t:AddParagraph({ Title = "Race tiếp theo", Content = "Bật để đếm ngược" })
-    local timerActive  = false
-    local timerStart   = 0
-    local RACE_INTERVAL = 30 * 60
-    -- Throttle timer — dùng tick() không dùng task.wait trong Heartbeat
-    local lastTimerTick = 0
-    local notifiedSoon  = false
+    t:AddSection({ Name = "⏱ Đếm ngược" })
+    local timerLabel  = t:AddParagraph({ Title = "Race tiếp theo", Content = "Bật để đếm" })
+    local timerActive = false
+    local timerStart  = 0
+    local lastTick    = 0
+    local notified    = false
 
     t:AddToggle("NitroTimer", {
-        Title    = "Bật đồng hồ đếm ngược",
-        Desc     = "Tính từ lúc bật — không đồng bộ với server",
+        Title    = "Bật đồng hồ",
         Default  = false,
         Callback = function(val)
-            timerActive  = val
-            notifiedSoon = false
-            if val then
-                timerStart = tick()
-                Fluent:Notify({ Title = "Nitro Race", Content = "Bắt đầu đếm 30 phút!", Duration = 3 })
-            else
-                timerLabel:SetContent("Đã tắt")
-            end
+            timerActive = val; notified = false
+            if val then timerStart = tick()
+            else timerLabel:SetContent("Đã tắt") end
         end
     })
 
     RunService.Heartbeat:Connect(function()
         if not timerActive then return end
         local now = tick()
-        if now - lastTimerTick < 1 then return end
-        lastTimerTick = now
+        if now - lastTick < 1 then return end
+        lastTick = now
         pcall(function()
-            local elapsed   = now - timerStart
-            local remaining = RACE_INTERVAL - (elapsed % RACE_INTERVAL)
-            local mins = math.floor(remaining / 60)
-            local secs = math.floor(remaining % 60)
-            timerLabel:SetContent(string.format("Race tiếp theo: %02d:%02d", mins, secs))
-            if remaining <= 10 and not notifiedSoon then
-                notifiedSoon = true
+            local rem = 1800 - ((now - timerStart) % 1800)
+            timerLabel:SetContent(string.format("Race tiếp theo: %02d:%02d", math.floor(rem/60), rem%60))
+            if rem <= 10 and not notified then
+                notified = true
                 Fluent:Notify({ Title = "🏎️ Nitro Race!", Content = "Race sắp bắt đầu!", Duration = 5 })
             end
-            if remaining > 10 then notifiedSoon = false end
+            if rem > 10 then notified = false end
         end)
     end)
 
-    t:AddSection({ Name = "📊 Theo dõi tiến trình" })
+    t:AddSection({ Name = "📊 Theo dõi" })
 
-    local winCount   = 0
-    local winLabel   = t:AddParagraph({ Title = "Wins hiện tại",     Content = "0 wins" })
+    local winCount    = 0
     local trophyCount = 0
-    local trophyLabel = t:AddParagraph({ Title = "Trophies tích lũy", Content = "0 Trophies" })
+    local winLabel    = t:AddParagraph({ Title = "Wins",     Content = "0 wins" })
+    local trphLabel   = t:AddParagraph({ Title = "Trophies", Content = "0" })
 
-    local WIN_REWARDS = {
-        {1, "Seahorse Racer"}, {5, "Lizard Racer"}, {15, "Bird Racer"},
-        {21, "Cheetah Racer"}, {30, "Snail Racer"},
-    }
-    local function getNextReward(wins)
-        for _, r in ipairs(WIN_REWARDS) do
-            if wins < r[1] then
-                return string.format(" → %d wins: %s", r[1], r[2])
-            end
+    local WR = {{1,"Seahorse"},{5,"Lizard"},{15,"Bird"},{21,"Cheetah"},{30,"Snail"}}
+    local function nextR(w)
+        for _, r in ipairs(WR) do
+            if w < r[1] then return string.format(" → %dw: %s", r[1], r[2]) end
         end
-        return " ✅ Win Pass hoàn tất!"
+        return " ✅ Hoàn tất!"
     end
 
-    t:AddButton({
-        Title    = "+1 Win",
-        Desc     = "Ghi nhận một chiến thắng thủ công",
-        Callback = function()
-            winCount = winCount + 1
-            winLabel:SetContent(winCount .. " wins" .. getNextReward(winCount))
-        end
-    })
-
-    t:AddButton({
-        Title    = "Reset wins",
-        Callback = function()
-            winCount = 0
-            winLabel:SetContent("0 wins")
-        end
-    })
-
-    t:AddButton({
-        Title    = "+2500 Trophies",
-        Desc     = "Ghi nhận Trophy từ một chiến thắng",
-        Callback = function()
-            trophyCount = trophyCount + 2500
-            local nitros = math.floor(trophyCount / 475)
-            trophyLabel:SetContent(string.format("%d Trophies  |  ~%d Nitro Mutation", trophyCount, nitros))
-        end
-    })
+    t:AddButton({ Title = "+1 Win", Callback = function()
+        winCount = winCount + 1
+        winLabel:SetContent(winCount.."wins"..nextR(winCount))
+    end})
+    t:AddButton({ Title = "Reset Wins", Callback = function()
+        winCount = 0; winLabel:SetContent("0 wins")
+    end})
+    t:AddButton({ Title = "+2500 Trophies", Callback = function()
+        trophyCount = trophyCount + 2500
+        trphLabel:SetContent(string.format("%d  |  ~%d Nitro Mutation", trophyCount, math.floor(trophyCount/475)))
+    end})
 
     t:AddSection({ Name = "ℹ️ Hướng dẫn" })
-
-    t:AddParagraph({
-        Title   = "Cách chơi",
-        Content = "1. Chờ Race Portal mở (mỗi 30 phút)\n2. Vào portal để tham gia race\n3. Về nhất → Trophies + Win\n4. Dùng Trophies đổi Nitro Mutation (10%)\n5. Win Pass mở ở mốc 1/5/15/21/30 wins"
-    })
+    t:AddParagraph({ Title = "Cách chơi", Content = "1. Chờ Race Portal mở (30 phút)\n2. Vào portal → race\n3. Về nhất → Trophy + Win\n4. Dùng Trophies đổi Nitro Mutation" })
 end
 
 -- ═══════════════════════════════════════════════════════════
@@ -821,66 +659,39 @@ do
     local t = Tabs.Butterfly
 
     t:AddSection({ Name = "🦋 Butterfly Bloom" })
-
     t:AddParagraph({
-        Title   = "Cơ chế (đã xác minh)",
-        Content = "• Khu vực: Enchanted Forest / Enchanted Tree\n• Lấy Butterfly Net từ bên trong cây\n• Bắt bướm → đổi lấy Enchanted Mutation (100%)\n\n⚠ Cooldown Butterfly Bloom chưa xác minh chính thức"
+        Title   = "Cơ chế",
+        Content = "• Khu vực: Enchanted Forest\n• Lấy Butterfly Net trong Enchanted Tree\n• Bắt bướm → đổi Enchanted Mutation (100%)"
     })
 
     t:AddSection({ Name = "📍 Định vị" })
-
-    local areaLabel = t:AddParagraph({ Title = "Enchanted Tree", Content = "Nhấn Tìm để quét workspace" })
+    local areaLabel = t:AddParagraph({ Title = "Enchanted Tree", Content = "Nhấn Tìm" })
 
     t:AddButton({
         Title    = "Tìm Enchanted Tree",
-        Desc     = "Quét workspace tìm khu vực Butterfly Bloom",
         Callback = function()
             local found = {}
             pcall(function()
                 for _, obj in ipairs(workspace:GetDescendants()) do
                     local n = obj.Name:lower()
-                    if n:find("enchanted") or n:find("butterfly") or n:find("bloom") then
-                        table.insert(found, string.format("%s (%s)", obj.Name, obj.ClassName))
+                    if n:find("enchant") or n:find("butterfly") or n:find("bloom") then
+                        table.insert(found, obj.Name.." ("..obj.ClassName..")")
                         if #found >= 10 then break end
                     end
                 end
             end)
-            if #found > 0 then
-                areaLabel:SetContent(table.concat(found, "\n"))
-            else
-                areaLabel:SetContent("Không tìm thấy\n(event chưa active hoặc tên khác)")
-            end
-            Fluent:Notify({ Title = "Butterfly", Content = string.format("%d objects tìm thấy", #found), Duration = 3 })
+            areaLabel:SetContent(#found > 0 and table.concat(found,"\n") or "Không tìm thấy — event chưa active?")
         end
     })
 
     t:AddSection({ Name = "🦋 Đếm bướm" })
-
-    local butterflyCount = 0
-    local butterflyLabel = t:AddParagraph({ Title = "Bướm đã bắt", Content = "0 bướm" })
-
-    t:AddButton({
-        Title    = "+1 Butterfly",
-        Callback = function()
-            butterflyCount = butterflyCount + 1
-            butterflyLabel:SetContent(string.format("%d bướm đã bắt", butterflyCount))
-        end
-    })
-
-    t:AddButton({
-        Title    = "Reset đếm",
-        Callback = function()
-            butterflyCount = 0
-            butterflyLabel:SetContent("0 bướm")
-        end
-    })
+    local bc = 0
+    local bl = t:AddParagraph({ Title = "Bướm đã bắt", Content = "0" })
+    t:AddButton({ Title = "+1 Butterfly", Callback = function() bc=bc+1; bl:SetContent(bc.." bướm") end })
+    t:AddButton({ Title = "Reset",        Callback = function() bc=0;    bl:SetContent("0") end })
 
     t:AddSection({ Name = "ℹ️ Hướng dẫn" })
-
-    t:AddParagraph({
-        Title   = "Cách chơi",
-        Content = "1. Đến Enchanted Forest\n2. Vào bên trong Enchanted Tree\n3. Lấy Butterfly Net\n4. Bắt bướm trong khu vực\n5. Đổi bướm → Enchanted Mutation (100%)"
-    })
+    t:AddParagraph({ Title = "Cách chơi", Content = "1. Đến Enchanted Forest\n2. Vào Enchanted Tree → lấy Net\n3. Bắt bướm → đổi Enchanted Mutation (100%)" })
 end
 
 -- ═══════════════════════════════════════════════════════════
@@ -891,137 +702,94 @@ do
     local PLACE_ID = game.PlaceId
 
     t:AddSection({ Name = "🌐 Server Hop" })
+    local srvStatus = t:AddParagraph({ Title = "Trạng thái", Content = "Chưa bắt đầu" })
 
-    t:AddParagraph({
-        Title   = "Cách hoạt động",
-        Content = "Lấy danh sách server từ Roblox API\nrồi tìm server ít người nhất.\n\n⚠ Không thể tạo server riêng — chỉ tìm server ít người nhất."
-    })
-
-    local serverStatusLabel = t:AddParagraph({ Title = "Trạng thái", Content = "Chưa bắt đầu" })
-
-    local minPlayers = 3
+    local minP = 3
     t:AddSlider("MinPlayersSlider", {
-        Title    = "Vào server có tối đa N người",
-        Min      = 1,
-        Max      = 10,
-        Default  = 3,
-        Rounding = 0,
-        Callback = function(val) minPlayers = val end
+        Title = "Vào server ≤ N người", Min=1, Max=10, Default=3, Rounding=0,
+        Callback = function(v) minP = v end
     })
 
-    local function getServers(cursor)
+    local function getServerList(cursor)
         local url = string.format(
             "https://games.roblox.com/v1/games/%d/servers/Public?sortOrder=Asc&limit=100%s",
-            PLACE_ID,
-            cursor and ("&cursor=" .. cursor) or ""
+            PLACE_ID, cursor and ("&cursor="..cursor) or ""
         )
         local ok, res = pcall(function()
             return HttpService:JSONDecode(game:HttpGet(url, true))
         end)
-        if ok and res then return res end
-        return nil
+        return ok and res or nil
     end
 
-    local function findQuietServer()
-        serverStatusLabel:SetContent("Đang tải danh sách server...")
-        local cursor   = nil
-        local attempts = 0
-        local fallbackServers = nil
-
+    local function findServer()
+        srvStatus:SetContent("Đang quét...")
+        local cursor, tries, fb = nil, 0, nil
         repeat
-            local data = getServers(cursor)
-            if not data or not data.data then
-                serverStatusLabel:SetContent("Lỗi lấy danh sách server")
-                return nil
-            end
-            -- Lưu trang đầu để dùng làm fallback
-            if not fallbackServers then
-                fallbackServers = data.data
-            end
-            for _, srv in ipairs(data.data) do
-                if (srv.playing or 0) <= minPlayers then
-                    return srv.id, srv.playing or 0
+            local data = getServerList(cursor)
+            if not data or not data.data then break end
+            if not fb then fb = data.data end
+            for _, s in ipairs(data.data) do
+                if (s.playing or 0) <= minP and s.id ~= game.JobId then
+                    return s.id, s.playing or 0
                 end
             end
-            cursor   = data.nextPageCursor
-            attempts = attempts + 1
+            cursor = data.nextPageCursor; tries = tries + 1
             task.wait(0.5)
-        until not cursor or attempts > 5
-
-        -- Fallback: server ít người nhất trong trang đầu
-        if fallbackServers and #fallbackServers > 0 then
-            table.sort(fallbackServers, function(a,b) return (a.playing or 0) < (b.playing or 0) end)
-            return fallbackServers[1].id, fallbackServers[1].playing or 0
+        until not cursor or tries > 5
+        -- fallback: server ít người nhất
+        if fb and #fb > 0 then
+            table.sort(fb, function(a,b) return (a.playing or 0) < (b.playing or 0) end)
+            for _, s in ipairs(fb) do
+                if s.id ~= game.JobId then return s.id, s.playing or 0 end
+            end
         end
         return nil
     end
 
-    t:AddButton({
-        Title    = "🔍 Tìm & vào server ít người",
-        Desc     = "Quét rồi teleport vào server ít người nhất",
-        Callback = function()
-            serverStatusLabel:SetContent("Đang quét...")
-            task.spawn(function()
-                local jobId, count = findQuietServer()
-                if jobId then
-                    serverStatusLabel:SetContent(
-                        string.format("Tìm thấy: %d người — đang teleport...", count)
-                    )
-                    Fluent:Notify({ Title = "Server Hop", Content = string.format("Vào server %d người!", count), Duration = 3 })
-                    task.wait(1.5)
-                    pcall(function()
-                        TeleportService:TeleportToPlaceInstance(PLACE_ID, jobId, player)
-                    end)
-                else
-                    serverStatusLabel:SetContent("Không tìm được server phù hợp")
-                    Fluent:Notify({ Title = "Server Hop", Content = "Không tìm được!", Duration = 3 })
+    local function doHop()
+        task.spawn(function()
+            local jobId, count = findServer()
+            if jobId then
+                srvStatus:SetContent(string.format("Tìm thấy: %d người — teleport...", count))
+                Fluent:Notify({ Title = "Server Hop", Content = count.." người", Duration = 3 })
+                task.wait(1.5)
+                -- Guard: wrap teleport để tránh bị kick
+                local ok, err = pcall(function()
+                    TeleportService:TeleportToPlaceInstance(PLACE_ID, jobId, player)
+                end)
+                if not ok then
+                    srvStatus:SetContent("Teleport lỗi: "..(err or "unknown"))
+                    Fluent:Notify({ Title = "Lỗi Hop", Content = tostring(err):sub(1,60), Duration = 4 })
                 end
-            end)
-        end
-    })
+            else
+                srvStatus:SetContent("Không tìm được server phù hợp")
+                Fluent:Notify({ Title = "Server Hop", Content = "Không tìm được!", Duration = 3 })
+            end
+        end)
+    end
+
+    t:AddButton({ Title = "🔍 Server Hop ngay", Desc = "Tìm server ít người và nhảy vào", Callback = doHop })
 
     t:AddSection({ Name = "🔄 Auto Hop" })
-
-    local hopActive       = false
-    local autoHopThreshold = 10
-
+    local hopActive = false
+    local hopThresh = 10
     t:AddSlider("AutoHopThresholdSlider", {
-        Title    = "Hop khi server > N người",
-        Min      = 2,
-        Max      = 50,
-        Default  = 10,
-        Rounding = 0,
-        Callback = function(val) autoHopThreshold = val end
+        Title = "Hop khi > N người", Min=2, Max=50, Default=10, Rounding=0,
+        Callback = function(v) hopThresh = v end
     })
-
     t:AddToggle("AutoHopToggle", {
-        Title    = "Bật Auto Hop",
-        Desc     = "Tự chuyển server khi đông hơn ngưỡng",
-        Default  = false,
+        Title = "Bật Auto Hop", Default = false,
         Callback = function(val)
             hopActive = val
             if val then
-                Fluent:Notify({ Title = "Auto Hop", Content = "Đã bật!", Duration = 2 })
                 task.spawn(function()
                     while hopActive do
                         task.wait(15)
                         if not hopActive then break end
                         pcall(function()
-                            local current = #Players:GetPlayers()
-                            if current > autoHopThreshold then
-                                serverStatusLabel:SetContent(
-                                    string.format("Server đông (%d người) — đang hop...", current)
-                                )
-                                local jobId, count = findQuietServer()
-                                if jobId then
-                                    task.wait(1)
-                                    TeleportService:TeleportToPlaceInstance(PLACE_ID, jobId, player)
-                                end
-                            else
-                                serverStatusLabel:SetContent(
-                                    string.format("Server ổn (%d người)", current)
-                                )
-                            end
+                            local cur = #Players:GetPlayers()
+                            if cur > hopThresh then doHop()
+                            else srvStatus:SetContent(string.format("OK — %d người", cur)) end
                         end)
                     end
                 end)
@@ -1030,20 +798,14 @@ do
     })
 
     t:AddSection({ Name = "📊 Server hiện tại" })
-
-    local srvInfoLabel = t:AddParagraph({ Title = "Thông tin", Content = "Nhấn làm mới" })
-
+    local srvInfo = t:AddParagraph({ Title = "JobId", Content = "Nhấn làm mới" })
     t:AddButton({
-        Title    = "Làm mới thông tin",
+        Title = "Làm mới & Copy JobId",
         Callback = function()
             pcall(function()
-                local jobId   = game.JobId
-                local players = #Players:GetPlayers()
-                srvInfoLabel:SetContent(string.format(
-                    "JobId: %s\nSố người: %d\nPlace: %d",
-                    jobId, players, PLACE_ID
-                ))
-                copyToClipboard(jobId)
+                local jid = game.JobId
+                srvInfo:SetContent(string.format("JobId: %s\nSố người: %d", jid, #Players:GetPlayers()))
+                copyToClipboard(jid)
                 Fluent:Notify({ Title = "Server", Content = "Đã copy JobId!", Duration = 2 })
             end)
         end
@@ -1057,70 +819,46 @@ do
     local t = Tabs.Movement
 
     t:AddSection({ Name = "🏃 Di chuyển" })
-
-    t:AddParagraph({
-        Title   = "Lưu ý",
-        Content = "WalkSpeed/JumpPower là client-side.\nServer có thể reset. Không can thiệp anti-cheat."
-    })
+    t:AddParagraph({ Title = "Lưu ý", Content = "Client-side. Server có thể reset." })
 
     t:AddSlider("WalkSpeedSlider", {
-        Title    = "WalkSpeed",
-        Desc     = "Tốc độ di chuyển (mặc định: 16)",
-        Min      = 1,
-        Max      = 350,
-        Default  = 16,
-        Rounding = 0,
-        Callback = function(val)
+        Title="WalkSpeed", Min=1, Max=350, Default=16, Rounding=0,
+        Callback = function(v)
             pcall(function()
-                local hum = character and character:FindFirstChildOfClass("Humanoid")
-                if hum then hum.WalkSpeed = val end
+                local h = character and character:FindFirstChildOfClass("Humanoid")
+                if h then h.WalkSpeed = v end
             end)
         end
     })
-
     t:AddSlider("JumpPowerSlider", {
-        Title    = "JumpPower",
-        Desc     = "Lực nhảy (mặc định: 50)",
-        Min      = 1,
-        Max      = 500,
-        Default  = 50,
-        Rounding = 0,
-        Callback = function(val)
+        Title="JumpPower", Min=1, Max=500, Default=50, Rounding=0,
+        Callback = function(v)
             pcall(function()
-                local hum = character and character:FindFirstChildOfClass("Humanoid")
-                if hum then
-                    hum.JumpPower  = val
-                    hum.UseJumpPower = true
-                end
+                local h = character and character:FindFirstChildOfClass("Humanoid")
+                if h then h.JumpPower = v; h.UseJumpPower = true end
             end)
         end
     })
 
-    t:AddSection({ Name = "🔧 Công cụ" })
+    t:AddSection({ Name = "🔧 Extra" })
 
-    local noclipConn
+    local ncConn
     t:AddToggle("NoclipToggle", {
-        Title    = "NoClip",
-        Desc     = "Xuyên tường (client-side)",
-        Default  = false,
+        Title="NoClip", Default=false,
         Callback = function(val)
             if val then
-                noclipConn = RunService.Stepped:Connect(function()
+                ncConn = RunService.Stepped:Connect(function()
                     pcall(function()
-                        if character then
-                            for _, p in ipairs(character:GetDescendants()) do
-                                if p:IsA("BasePart") then p.CanCollide = false end
-                            end
+                        for _, p in ipairs(character:GetDescendants()) do
+                            if p:IsA("BasePart") then p.CanCollide = false end
                         end
                     end)
                 end)
             else
-                if noclipConn then noclipConn:Disconnect(); noclipConn = nil end
+                if ncConn then ncConn:Disconnect(); ncConn = nil end
                 pcall(function()
-                    if character then
-                        for _, p in ipairs(character:GetDescendants()) do
-                            if p:IsA("BasePart") then p.CanCollide = true end
-                        end
+                    for _, p in ipairs(character:GetDescendants()) do
+                        if p:IsA("BasePart") then p.CanCollide = true end
                     end
                 end)
             end
@@ -1129,15 +867,13 @@ do
 
     local ijConn
     t:AddToggle("InfJumpToggle", {
-        Title    = "Infinite Jump",
-        Desc     = "Nhảy liên tục",
-        Default  = false,
+        Title="Infinite Jump", Default=false,
         Callback = function(val)
             if val then
                 ijConn = UserInputService.JumpRequest:Connect(function()
                     pcall(function()
-                        local hum = character and character:FindFirstChildOfClass("Humanoid")
-                        if hum then hum:ChangeState(Enum.HumanoidStateType.Jumping) end
+                        local h = character and character:FindFirstChildOfClass("Humanoid")
+                        if h then h:ChangeState(Enum.HumanoidStateType.Jumping) end
                     end)
                 end)
             else
@@ -1147,14 +883,13 @@ do
     })
 
     t:AddButton({
-        Title    = "Reset Speed",
-        Desc     = "WalkSpeed 16, JumpPower 50",
+        Title="Reset Speed",
         Callback = function()
             pcall(function()
-                local hum = character and character:FindFirstChildOfClass("Humanoid")
-                if hum then hum.WalkSpeed = 16; hum.JumpPower = 50 end
+                local h = character and character:FindFirstChildOfClass("Humanoid")
+                if h then h.WalkSpeed=16; h.JumpPower=50 end
             end)
-            Fluent:Notify({ Title = "Movement", Content = "Đã reset!", Duration = 2 })
+            Fluent:Notify({ Title="Movement", Content="Reset!", Duration=2 })
         end
     })
 end
@@ -1166,72 +901,117 @@ do
     local t = Tabs.Settings
 
     t:AddSection({ Name = "⚙️ Giao diện" })
-
     t:AddToggle("AcrylicToggle", {
-        Title    = "Hiệu ứng Acrylic",
-        Default  = true,
-        Callback = function(val) pcall(function() Window:SetAcrylic(val) end) end
-    })
-
-    t:AddSlider("UITransparency", {
-        Title    = "Độ trong suốt UI",
-        Min      = 0,
-        Max      = 100,
-        Default  = 0,
-        Rounding = 0,
-        Callback = function(val) pcall(function() Window:SetTransparency(val / 100) end) end
+        Title="Acrylic", Default=true,
+        Callback = function(v) pcall(function() Window:SetAcrylic(v) end) end
     })
 
     t:AddSection({ Name = "💾 Lưu cài đặt" })
-
     SaveManager:SetLibrary(Fluent)
     InterfaceManager:SetLibrary(Fluent)
     InterfaceManager:BuildInterfaceSection(t)
     SaveManager:BuildConfigSection(t)
 
-    t:AddSection({ Name = "💬 Cộng đồng" })
-
-    t:AddParagraph({ Title = "Discord", Content = "discord.gg/hzkP9m6h87" })
-
+    t:AddSection({ Name = "💬 Discord" })
+    t:AddParagraph({ Title = "Server", Content = "discord.gg/hzkP9m6h87" })
     t:AddButton({
-        Title    = "📋 Copy link Discord",
-        Desc     = "Sao chép discord.gg/hzkP9m6h87",
+        Title="📋 Copy Discord",
         Callback = function()
             copyToClipboard("https://discord.gg/hzkP9m6h87")
-            Fluent:Notify({ Title = "Discord", Content = "Đã copy link Discord!", Duration = 3 })
+            Fluent:Notify({ Title="Discord", Content="Đã copy!", Duration=3 })
         end
     })
 
-    t:AddSection({ Name = "ℹ️ Thông tin" })
-
-    t:AddParagraph({
-        Title   = "Ninja Hub v1.2",
-        Content = "Game: Steal An Egg\nEvent: Nitro Race + Butterfly Bloom\n⚠ Chỉ dùng trong môi trường cá nhân"
-    })
+    t:AddSection({ Name = "ℹ️" })
+    t:AddParagraph({ Title="Ninja Hub v1.3", Content="Steal An Egg | Nitro Race | Butterfly Bloom\n⚠ Chỉ dùng cá nhân" })
 
     t:AddButton({
-        Title    = "Đặt lại toàn bộ UI",
+        Title="Đặt lại UI",
         Callback = function()
             pcall(function() SaveManager:ResetToDefaults() end)
-            Fluent:Notify({ Title = "Settings", Content = "Đã đặt lại!", Duration = 2 })
+            Fluent:Notify({ Title="Settings", Content="Đã đặt lại!", Duration=2 })
         end
     })
 end
 
 -- ── LƯU CONFIG ─────────────────────────────────────────────
 SaveManager:SetFolder("NinjaHub")
-SaveManager:SetIgnoreIndexes({ "NoclipToggle", "InfJumpToggle", "AutoStealToggle", "AutoStealPetToggle", "AutoHopToggle" })
+SaveManager:SetIgnoreIndexes({
+    "NoclipToggle","InfJumpToggle",
+    "AutoStealToggle","AutoStealPetToggle","AutoHopToggle","NitroTimer"
+})
 SaveManager:LoadAutoloadConfig()
 
--- ═══════════════════════════════════════════════════════════
---  NÚT NỔI TOGGLE + NÚT ĐÓNG
--- ═══════════════════════════════════════════════════════════
-local guiParent
-pcall(function() if gethui then guiParent = gethui() end end)
-guiParent = guiParent or CoreGui
+-- Chọn tab Home
+Window:SelectTab(1)
 
+-- ── KEYBINDS ───────────────────────────────────────────────
+UserInputService.InputBegan:Connect(function(input, gp)
+    if gp then return end
+    if input.KeyCode == Enum.KeyCode.F5 then
+        pcall(function()
+            if moneyLabel then moneyLabel:SetContent(getMoney()) end
+            if speedLabel  then speedLabel:SetContent(getSpeed()) end
+        end)
+        Fluent:Notify({ Title="Ninja Hub", Content="Stats làm mới!", Duration=2 })
+
+    elseif input.KeyCode == Enum.KeyCode.F6 then
+        AutoSteal.Active = not AutoSteal.Active
+        Fluent:Notify({ Title="Auto Steal", Content=AutoSteal.Active and "Bật!" or "Tắt!", Duration=2 })
+        if AutoSteal.Active then task.spawn(stealLoop) end
+
+    elseif input.KeyCode == Enum.KeyCode.F7 then
+        Fluent:Notify({ Title="Server Hop", Content="Đang tìm...", Duration=2 })
+        task.spawn(function()
+            local ok, data = pcall(function()
+                return HttpService:JSONDecode(
+                    game:HttpGet(string.format(
+                        "https://games.roblox.com/v1/games/%d/servers/Public?sortOrder=Asc&limit=20",
+                        game.PlaceId), true))
+            end)
+            if ok and data and data.data and #data.data > 0 then
+                table.sort(data.data, function(a,b) return (a.playing or 99)<(b.playing or 99) end)
+                for _, s in ipairs(data.data) do
+                    if s.id ~= game.JobId then
+                        pcall(function() TeleportService:TeleportToPlaceInstance(game.PlaceId, s.id, player) end)
+                        break
+                    end
+                end
+            end
+        end)
+
+    elseif input.KeyCode == Enum.KeyCode.Delete then
+        pcall(function()
+            local g = CoreGui:FindFirstChild("NinjaHubFloatingUI")
+            if g then g:Destroy() end
+        end)
+    end
+end)
+
+-- ═══════════════════════════════════════════════════════════
+--  NÚT NỔI — thử gethui → CoreGui → PlayerGui
+-- ═══════════════════════════════════════════════════════════
+local floatParent = nil
+
+-- Thử từng parent theo thứ tự ưu tiên
+local parentCandidates = {}
+pcall(function() if gethui and gethui() then table.insert(parentCandidates, gethui()) end end)
+table.insert(parentCandidates, CoreGui)
+pcall(function() table.insert(parentCandidates, player:WaitForChild("PlayerGui", 3)) end)
+
+for _, p in ipairs(parentCandidates) do
+    local ok = pcall(function()
+        local test = Instance.new("Frame")
+        test.Parent = p
+        test:Destroy()
+    end)
+    if ok then floatParent = p; break end
+end
+floatParent = floatParent or parentCandidates[#parentCandidates]
+
+-- Xóa GUI cũ
 pcall(function()
-    local old = guiParent:FindFirstChild("NinjaHubFloatingUI")
+    local old = floatParent:FindFirstChild("NinjaHubFloatingUI")
     if old then old:Destroy() end
 end)
 
@@ -1239,118 +1019,110 @@ local floatGui = Instance.new("ScreenGui")
 floatGui.Name           = "NinjaHubFloatingUI"
 floatGui.ResetOnSpawn   = false
 floatGui.IgnoreGuiInset = true
-floatGui.DisplayOrder   = 999
-floatGui.Parent = guiParent
+floatGui.DisplayOrder   = 9999
+floatGui.Parent         = floatParent
 
+-- Nút chính
 local toggleBtn = Instance.new("ImageButton")
-toggleBtn.Name             = "ToggleBtn"
 toggleBtn.Size             = UDim2.fromOffset(72, 72)
 toggleBtn.Position         = UDim2.new(0.04, 0, 0.22, 0)
 toggleBtn.BackgroundColor3 = Color3.fromRGB(18, 18, 26)
 toggleBtn.BorderSizePixel  = 0
 toggleBtn.AutoButtonColor  = true
-toggleBtn.Image            = "https://raw.githubusercontent.com/hoang-VN1/Tets/refs/heads/main/2374e4b898e74c1ff0183cbad39987bb.webp"
+toggleBtn.Image            = "rbxassetid://6031068421"
 toggleBtn.ScaleType        = Enum.ScaleType.Fit
 toggleBtn.Parent           = floatGui
+Instance.new("UICorner", toggleBtn).CornerRadius = UDim.new(0,16)
+local stroke = Instance.new("UIStroke", toggleBtn)
+stroke.Color = Color3.fromRGB(120,60,220); stroke.Thickness = 2
 
-local tc = Instance.new("UICorner")
-tc.CornerRadius = UDim.new(0, 16)
-tc.Parent = toggleBtn
-
-local ts = Instance.new("UIStroke")
-ts.Color     = Color3.fromRGB(120, 60, 220)
-ts.Thickness = 2
-ts.Parent    = toggleBtn
-
+-- Nút đóng X
 local closeBtn = Instance.new("TextButton")
-closeBtn.Name             = "CloseBtn"
 closeBtn.Size             = UDim2.fromOffset(22, 22)
-closeBtn.Position         = UDim2.new(1, -6, 0, -6)
-closeBtn.AnchorPoint      = Vector2.new(1, 0)
-closeBtn.BackgroundColor3 = Color3.fromRGB(200, 40, 60)
+closeBtn.Position         = UDim2.new(1,-6, 0,-6)
+closeBtn.AnchorPoint      = Vector2.new(1,0)
+closeBtn.BackgroundColor3 = Color3.fromRGB(200,40,60)
 closeBtn.Text             = "✕"
-closeBtn.TextColor3       = Color3.fromRGB(255, 255, 255)
+closeBtn.TextColor3       = Color3.fromRGB(255,255,255)
 closeBtn.TextSize         = 13
 closeBtn.Font             = Enum.Font.GothamBold
 closeBtn.BorderSizePixel  = 0
 closeBtn.Parent           = toggleBtn
+Instance.new("UICorner", closeBtn).CornerRadius = UDim.new(0,11)
 
-local cc = Instance.new("UICorner")
-cc.CornerRadius = UDim.new(0, 11)
-cc.Parent = closeBtn
+-- Drag
+local dragging, moved, dragStart, startPos, dragInp = false, false, nil, nil, nil
 
--- ── DRAG NÚT NỔI ───────────────────────────────────────────
-local dragging, moved = false, false
-local dragStart, startPos, dragInputObj
-
-toggleBtn.InputBegan:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton1
-    or input.UserInputType == Enum.UserInputType.Touch then
-        dragging     = true
-        moved        = false
-        dragStart    = input.Position
-        startPos     = toggleBtn.Position
-        dragInputObj = input
+toggleBtn.InputBegan:Connect(function(inp)
+    if inp.UserInputType == Enum.UserInputType.MouseButton1
+    or inp.UserInputType == Enum.UserInputType.Touch then
+        dragging=true; moved=false
+        dragStart=inp.Position; startPos=toggleBtn.Position; dragInp=inp
     end
 end)
-
-toggleBtn.InputChanged:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseMovement
-    or input.UserInputType == Enum.UserInputType.Touch then
-        dragInputObj = input
-    end
+toggleBtn.InputChanged:Connect(function(inp)
+    if inp.UserInputType == Enum.UserInputType.MouseMovement
+    or inp.UserInputType == Enum.UserInputType.Touch then dragInp=inp end
+end)
+UserInputService.InputChanged:Connect(function(inp)
+    if not dragging or inp ~= dragInp then return end
+    local d = inp.Position - dragStart
+    if math.abs(d.X)>5 or math.abs(d.Y)>5 then moved=true end
+    toggleBtn.Position = UDim2.new(
+        startPos.X.Scale, startPos.X.Offset + d.X,
+        startPos.Y.Scale, startPos.Y.Offset + d.Y
+    )
+end)
+UserInputService.InputEnded:Connect(function(inp)
+    if inp.UserInputType==Enum.UserInputType.MouseButton1
+    or inp.UserInputType==Enum.UserInputType.Touch then dragging=false end
 end)
 
-UserInputService.InputChanged:Connect(function(input)
-    if dragging and input == dragInputObj then
-        local delta = input.Position - dragStart
-        if math.abs(delta.X) > 5 or math.abs(delta.Y) > 5 then moved = true end
-        toggleBtn.Position = UDim2.new(
-            startPos.X.Scale, startPos.X.Offset + delta.X,
-            startPos.Y.Scale, startPos.Y.Offset + delta.Y
-        )
-    end
-end)
-
-UserInputService.InputEnded:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton1
-    or input.UserInputType == Enum.UserInputType.Touch then
-        dragging = false
-    end
-end)
-
+-- Toggle UI khi click nút nổi
+local uiVisible = true
 toggleBtn.Activated:Connect(function()
-    if moved then moved = false; return end
-    pcall(function() Window:Minimize() end)
-end)
-
-closeBtn.MouseButton1Click:Connect(function()
-    Fluent:Notify({ Title = "Ninja Hub", Content = "Đang đóng...", Duration = 1 })
-    task.wait(0.8)
-    pcall(function() floatGui:Destroy() end)
+    if moved then moved=false; return end
+    uiVisible = not uiVisible
+    -- Thử các API khác nhau của Fluent/FluentPlus
     pcall(function()
-        for _, gui in ipairs(CoreGui:GetChildren()) do
-            if gui.Name:lower():find("fluent") or gui.Name:lower():find("ninja") then
-                gui:Destroy()
-            end
-        end
-        local pGui = player:FindFirstChild("PlayerGui")
-        if pGui then
-            for _, gui in ipairs(pGui:GetChildren()) do
-                if gui.Name:lower():find("fluent") or gui.Name:lower():find("ninja") then
-                    gui:Destroy()
-                end
-            end
+        if Window.ToggleMinimize then Window:ToggleMinimize()
+        elseif Window.Toggle then Window:Toggle()
+        elseif Window.Minimize then Window:Minimize()
+        elseif Window.MainFrame then
+            Window.MainFrame.Visible = uiVisible
         end
     end)
 end)
 
--- ── THÔNG BÁO KHỞI ĐỘNG ────────────────────────────────────
-task.wait(0.5)
+-- Nút X đóng hoàn toàn
+closeBtn.MouseButton1Click:Connect(function()
+    -- Dừng tất cả chức năng tự động
+    AutoSteal.Active = false
+    task.wait(0.3)
+    -- Destroy float GUI
+    pcall(function() floatGui:Destroy() end)
+    -- Destroy Fluent window
+    pcall(function()
+        if Window.Destroy then Window:Destroy()
+        elseif Window.MainFrame then Window.MainFrame:Destroy()
+        end
+    end)
+    -- Quét và destroy mọi GUI còn lại của hub
+    for _, gui in ipairs({CoreGui, player:FindFirstChild("PlayerGui")}) do
+        if gui then
+            pcall(function()
+                for _, g in ipairs(gui:GetChildren()) do
+                    local n = g.Name:lower()
+                    if n:find("fluent") or n:find("ninja") then g:Destroy() end
+                end
+            end)
+        end
+    end
+end)
+
+-- ── THÔNG BÁO ──────────────────────────────────────────────
 Fluent:Notify({
-    Title    = "🥷 Ninja Hub v1.2",
-    Content  = "Đã tải thành công!\nSteal An Egg | Nitro Race | Butterfly Bloom",
+    Title    = "🥷 Ninja Hub v1.3",
+    Content  = "Đã tải! Steal An Egg ready.",
     Duration = 4
 })
-
-Window:SelectTab(1)
